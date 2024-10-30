@@ -3,9 +3,9 @@
 The purpose of this test candidate for .NET Programmer, the task is to create bug fixing with less documented .NET application in AGIT common IT operation.
 
 The candidate should complete:
-- Fixing order by for tables
-- Fixing Shipping Quantity
-- Fixing Product Sales chart
+- Fixing order by for tables(Fixed)
+- Fixing Shipping Quantity(Fixed)
+- Fixing Product Sales chart(Fixed)
 
 ![image](https://user-images.githubusercontent.com/82074464/232350330-3f4d8251-07e9-4156-bb56-75909d6ffb4d.png)
 
