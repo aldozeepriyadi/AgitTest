@@ -1,0 +1,317 @@
+﻿@{
+    ViewBag.Title = "Home Page";
+}
+@section header
+{
+    <link type="text/css" rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
+    <link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.2.0/css/bootstrap.min.css" />
+    <link type="text/css" rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css" />
+}
+<main>
+    <section class="row" aria-labelledby="aspnetTitle">
+        <h1 id="title">List of Orders</h1>
+        <div class="row">
+            <div class="col-sm-6">
+                <label class="form-label">
+                    Start Date
+                </label>
+                <input id="startDate" class="form-control" type="date" />
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label">
+                    End Date
+                </label>
+                <input id="endDate" class="form-control" type="date" />
+            </div>
+        </div>
+        <div class="row">
+            <section class="col-sm-12" style="padding-top: 10px">
+                <table id="orderTable" class="table table-striped" width="100%">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Phone</th>
+                            <th>Ship To</th>
+                            <th>Total Prices</th>
+                        </tr>
+                    </thead>
+                </table>
+            </section>
+        </div>
+    </section>
+
+    <div class="row">
+        <section class="col-sm-6">
+            <canvas id="chartShipment"></canvas>
+        </section>
+        <section class="col-sm-6">
+            <canvas id="chartProduct"></canvas>
+        </section>
+    </div>
+</main>
+
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="liveToast" class="toast hide" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <strong class="me-auto">Northwind</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+            Loading
+        </div>
+    </div>
+</div>
+
+@section scripts
+{
+    <script type="text/javascript" src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="text/javascript">
+        var chartShipment = null;
+        var chartProduct = null;
+
+        // Function to generate random colors for the charts
+        var dynamicColors = function () {
+            var r = Math.floor(Math.random() * 200);
+            var g = Math.floor(Math.random() * 200);
+            var b = Math.floor(Math.random() * 200);
+            return "rgb(" + r + "," + g + "," + b + ")";
+        };
+
+        $(document).ready(function () {
+            var now = new Date();
+            var month = (now.getMonth() + 1);
+            var day = now.getDate();
+            if (month < 10)
+                month = "0" + month;
+            if (day < 10)
+                day = "0" + day;
+
+            var today = '1990-' + month + '-' + day;
+            $("#startDate").val(today);
+            today = now.getFullYear() + '-' + month + '-' + day;
+            $("#endDate").val(today);
+
+            // Date change events
+            $("#startDate").change(function () {
+                var start = new Date($("#startDate").val());
+                var end = new Date($("#endDate").val());
+                if (start > end) {
+                    var month = (start.getMonth() + 1);
+                    var day = start.getDate();
+                    if (month < 10)
+                        month = "0" + month;
+                    if (day < 10)
+                        day = "0" + day;
+                    var today = start.getFullYear() + '-' + month + '-' + day;
+                    $("#endDate").val(today);
+                }
+                loadData();
+            });
+
+            $("#endDate").change(function () {
+                var start = new Date($("#startDate").val());
+                var end = new Date($("#endDate").val());
+                if (end < start) {
+                    var month = (end.getMonth() + 1);
+                    var day = end.getDate();
+                    if (month < 10)
+                        month = "0" + month;
+                    if (day < 10)
+                        day = "0" + day;
+                    var today = end.getFullYear() + '-' + month + '-' + day;
+                    $("#startDate").val(today);
+                }
+                loadData();
+            });
+
+            // Initialize DataTable
+            $("#orderTable").DataTable({
+                ajax: {
+                    url: "@Url.Action("OrderList", "Home")",
+                    type: "POST",
+                    data: function (d) {
+                        d.startDate = $("#startDate").val();
+                        d.endDate = $("#endDate").val();
+                    }
+                },
+                processing: true,
+                serverSide: true,
+                deferLoading: 0,
+                filter: true,
+                columns: [
+                    { data: "OrderID", name: "OrderID" },
+                    {
+                        data: "OrderDate", name: "OrderDate", render: function (data, type, row, meta) {
+                            var m = moment(row.OrderDate);
+                            return m.format("DD/MM/YYYY");
+                        }
+                    },
+                    { data: "CompanyName", name: "CompanyName" },
+                    { data: "Phone", name: "Phone" },
+                    { data: "ShipCity", name: "ShipCity" },
+                    {
+                        data: "TotalPrice", name: "TotalPrice", render: function (data, type, row, meta) {
+                            return "USD " + data;
+                        }
+                    },
+                ]
+            });
+
+            // Initialize Charts
+            chartShipment = new Chart(document.getElementById("chartShipment"), {
+                type: 'polarArea',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        borderWidth: 1,
+                        borderColor: '#00c0ef',
+                        label: 'City',
+                        backgroundColor: []
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false,
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Shipping Quantity'
+                        }
+                    }
+                }
+            });
+
+            chartProduct = new Chart(document.getElementById("chartProduct"), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        borderWidth: 1,
+                        borderColor: dynamicColors(),
+                        label: 'Quantity',
+                        backgroundColor: dynamicColors(),
+                        yAxisID: 'y',
+                    }, {
+                        data: [],
+                        borderWidth: 1,
+                        borderColor: dynamicColors(),
+                        label: 'Value',
+                        type: 'line',
+                        backgroundColor: dynamicColors(),
+                        yAxisID: 'y1',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false,
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Product Sales'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        },
+                    }
+                }
+            });
+
+            loadData();
+        });
+
+        // Function to load data for charts and DataTable
+        function loadData() {
+            window.setTimeout(function () {
+                $("#liveToast").toast("show");
+                $("#orderTable").DataTable().ajax.reload();
+
+                var formData = new FormData();
+                formData.append("start", $("#startDate").val());
+                formData.append("end", $("#endDate").val());
+
+                // AJAX call for Shipment Chart
+                $.ajax({
+                    url: "@Url.Action("ShipCity", "Home")",
+                    type: "POST",
+                    cache: false,
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (ret) {
+                        if (ret.status === "OK") {
+                            // Clear previous data
+                            chartShipment.data.labels = [];
+                            chartShipment.data.datasets[0].data = [];
+                            chartShipment.data.datasets[0].backgroundColor = [];
+
+                            // Populate chart data
+                            ret.data.forEach(function (item) {
+                                chartShipment.data.labels.push(item.ShipCity);
+                                chartShipment.data.datasets[0].data.push(item.Qty);
+                                chartShipment.data.datasets[0].backgroundColor.push(dynamicColors());
+                            });
+                            chartShipment.update();
+                        }
+                    },
+                    error: function () {
+                        console.log("Error loading shipment data.");
+                    }
+                });
+
+                // AJAX call for Product Sales Chart
+                $.ajax({
+                    url: "@Url.Action("Sales", "Home")",
+                    type: "POST",
+                    cache: false,
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (ret) {
+                        if (ret.status === "OK") {
+                            chartProduct.data.labels = [];
+                            chartProduct.data.datasets[0].data = []; // Quantity data
+                            chartProduct.data.datasets[1].data = []; // TotalPrice data
+                            chartProduct.data.datasets[0].backgroundColor = [];
+
+                            // Populate chart data
+                            ret.data.forEach(function (item) {
+                                chartProduct.data.labels.push(item.CategoryName);
+                                chartProduct.data.datasets[0].data.push(item.Quantity);
+                                chartProduct.data.datasets[1].data.push(item.TotalPrice);
+                                chartProduct.data.datasets[0].backgroundColor.push(dynamicColors());
+                            });
+                            chartProduct.update();
+                        }
+                    },
+                    error: function () {
+                        console.log("Error loading product sales data.");
+                    }
+                });
+            }, 100);
+        }
+    </script>
+}
